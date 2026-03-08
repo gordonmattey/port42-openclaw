@@ -20,8 +20,13 @@ jobs:
           node-version: '24'
 
       - run: npm install -g npm@latest
-      - run: npm --version
+      - run: echo "npm version $(npm --version)"
       - run: npm ci
       - run: npm run build
-      - uses: azu/setup-npm-trusted-publish@v1
-      - run: npm publish --provenance --access public
+
+      - name: Get OIDC token and publish
+        run: |
+          NPM_ID_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" | jq -r '.value')
+          export NPM_ID_TOKEN
+          npm publish --provenance --access public
