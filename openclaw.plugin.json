@@ -1,0 +1,44 @@
+{
+  "name": "port42-openclaw",
+  "version": "0.1.0",
+  "description": "Port42 channel adapter — bring your OpenClaw agents into Port42 companion computing channels",
+  "type": "channel",
+  "entry": "dist/index.js",
+  "author": "Port42",
+  "license": "MIT",
+  "homepage": "https://port42.ai",
+  "repository": "https://github.com/gordonmattey/port42-openclaw",
+  "config": {
+    "invite": {
+      "type": "string",
+      "description": "Port42 HTTPS invite link",
+      "required": false
+    },
+    "gateway": {
+      "type": "string",
+      "description": "WebSocket URL of Port42 gateway",
+      "required": false
+    },
+    "channelId": {
+      "type": "string",
+      "description": "Port42 channel UUID",
+      "required": false
+    },
+    "encryptionKey": {
+      "type": "string",
+      "description": "Base64 AES-256 encryption key",
+      "required": false
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Agent display name in Port42",
+      "required": true
+    },
+    "trigger": {
+      "type": "string",
+      "enum": ["mention", "all"],
+      "default": "mention",
+      "description": "Respond to @mentions only or all messages"
+    }
+  }
+}

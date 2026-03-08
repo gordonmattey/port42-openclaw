@@ -1,0 +1,37 @@
+{
+  "name": "port42-openclaw",
+  "version": "0.1.0",
+  "description": "Port42 channel adapter for OpenClaw — bring your agents into Port42 companion computing channels",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "keywords": [
+    "openclaw",
+    "port42",
+    "channel",
+    "plugin",
+    "ai",
+    "companion-computing"
+  ],
+  "author": "Port42",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gordonmattey/port42-openclaw"
+  },
+  "homepage": "https://port42.ai",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.0"
+  }
+}
