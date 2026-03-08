@@ -19,6 +19,9 @@ jobs:
         with:
           node-version: '24'
 
+      - run: npm install -g npm@latest
+      - run: npm --version
       - run: npm ci
       - run: npm run build
+      - uses: azu/setup-npm-trusted-publish@v1
       - run: npm publish --provenance --access public
