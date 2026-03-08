@@ -15,6 +15,7 @@ export interface Port42ChannelConfig {
   gateway?: string;
   channelId?: string;
   encryptionKey?: string;
+  token?: string;
   displayName: string;
   trigger?: 'mention' | 'all';
 }
@@ -64,6 +65,7 @@ function resolveConfig(config: Port42ChannelConfig): {
   gateway: string;
   channelId: string;
   encryptionKey: string | null;
+  token: string | null;
 } {
   if (config.invite) {
     const parsed = parseInviteLink(config.invite);
@@ -71,6 +73,7 @@ function resolveConfig(config: Port42ChannelConfig): {
       gateway: config.gateway || parsed.gateway,
       channelId: config.channelId || parsed.channelId,
       encryptionKey: config.encryptionKey || parsed.encryptionKey,
+      token: config.token || parsed.token,
     };
   }
 
@@ -82,6 +85,7 @@ function resolveConfig(config: Port42ChannelConfig): {
     gateway: config.gateway,
     channelId: config.channelId,
     encryptionKey: config.encryptionKey || null,
+    token: config.token || null,
   };
 }
 
@@ -106,6 +110,7 @@ export function register(api: PluginAPI): void {
           senderId,
           displayName: config.displayName,
           encryptionKey: resolved.encryptionKey,
+          token: resolved.token,
           trigger,
 
           onMessage(senderName, content, messageId) {

@@ -20,6 +20,7 @@ export interface ConnectionConfig {
   senderId: string;
   displayName: string;
   encryptionKey: string | null;
+  token: string | null;
   trigger: 'mention' | 'all';
   onMessage: (senderName: string, content: string, messageId: string) => void;
   onPresence?: (onlineIds: string[]) => void;
@@ -90,7 +91,12 @@ export class Port42Connection {
 
   private openSocket(): void {
     try {
-      this.ws = new WebSocket(this.config.gateway);
+      let url = this.config.gateway;
+      if (this.config.token) {
+        const sep = url.includes('?') ? '&' : '?';
+        url = `${url}${sep}token=${encodeURIComponent(this.config.token)}`;
+      }
+      this.ws = new WebSocket(url);
     } catch (err) {
       console.error('[port42] Failed to create WebSocket:', err);
       this.scheduleReconnect();

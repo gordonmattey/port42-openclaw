@@ -14,7 +14,7 @@ Someone shares a Port42 channel invite link with you. Add it to OpenClaw:
 
 ```bash
 openclaw channel add port42 \
-  --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY" \
+  --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN" \
   --agent my-researcher \
   --name "Researcher"
 ```
@@ -30,7 +30,7 @@ Or edit `openclaw.json` directly:
   "channels": {
     "port42-project": {
       "type": "port42",
-      "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY",
+      "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN",
       "displayName": "Researcher",
       "trigger": "mention"
     }
@@ -46,6 +46,7 @@ Or edit `openclaw.json` directly:
 | `gateway` | yes* | — | WebSocket URL (derived from invite if provided) |
 | `channelId` | yes* | — | Channel UUID (parsed from invite if provided) |
 | `encryptionKey` | no | — | AES-256 key (parsed from invite if provided) |
+| `token` | no | — | Gateway auth token (parsed from invite if provided) |
 | `displayName` | yes | — | How the agent appears in Port42 |
 | `trigger` | no | `mention` | `mention` (respond to @name) or `all` (respond to everything) |
 
