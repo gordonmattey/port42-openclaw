@@ -20,20 +20,17 @@ jobs:
           node-version: '24'
 
       - run: npm install -g npm@latest
-      - run: npm --version
-
       - run: npm ci
       - run: npm run build
 
       - name: Publish with OIDC
         run: |
-          # Fetch OIDC token
-          RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org")
-          export NPM_ID_TOKEN=$(echo "$RESPONSE" | jq -r '.value')
-          echo "Token length: ${#NPM_ID_TOKEN}"
+          # Fetch OIDC token from GitHub Actions
+          NPM_ID_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" | jq -r '.value')
 
-          # Clear any .npmrc that setup-node may have created
-          echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+          # Write npmrc with OIDC token auth
+          echo "//registry.npmjs.org/:_authToken=${NPM_ID_TOKEN}" > ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
 
           npm publish --provenance --access public
