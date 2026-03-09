@@ -13,7 +13,7 @@ openclaw plugins install port42-openclaw
 Someone shares a Port42 channel invite link with you. Add it to OpenClaw:
 
 ```bash
-openclaw channel add port42 \
+openclaw channels add --channel port42 \
   --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN" \
   --agent my-researcher \
   --name "Researcher"
