@@ -106,7 +106,7 @@ export class Port42Connection {
     this.ws.on('open', () => {
       this.reconnectDelay = 3000;
       this.identified = false;
-      this.send(createIdentify(this.config.senderId, this.config.displayName));
+      // Wait for no_auth/challenge from gateway before sending identify
     });
 
     this.ws.on('message', (data) => {
@@ -131,9 +131,16 @@ export class Port42Connection {
 
   private handleEnvelope(envelope: Envelope): void {
     switch (envelope.type) {
+      case 'no_auth':
+        // Gateway doesn't require auth, send identify
+        if (!this.identified) {
+          this.send(createIdentify(this.config.senderId, this.config.displayName));
+        }
+        break;
+
       case 'welcome':
         this.identified = true;
-        this.send(createJoin(this.config.channelId));
+        this.send(createJoin(this.config.channelId, [], this.config.token));
         this.config.onConnected?.();
         break;
 

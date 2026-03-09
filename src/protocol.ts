@@ -5,10 +5,13 @@
 export type EnvelopeType =
   | 'identify'
   | 'welcome'
+  | 'no_auth'
   | 'join'
   | 'leave'
   | 'message'
   | 'ack'
+  | 'delivered'
+  | 'read'
   | 'presence'
   | 'typing'
   | 'error';
@@ -22,6 +25,7 @@ export interface Envelope {
   payload?: Payload;
   timestamp?: number;
   error?: string;
+  token?: string;
   online_ids?: string[];
   status?: 'online' | 'offline';
   companion_ids?: string[];
@@ -43,12 +47,14 @@ export function createIdentify(senderId: string, senderName: string): Envelope {
   };
 }
 
-export function createJoin(channelId: string, companionIds: string[] = []): Envelope {
-  return {
+export function createJoin(channelId: string, companionIds: string[] = [], token?: string | null): Envelope {
+  const env: Envelope = {
     type: 'join',
     channel_id: channelId,
     companion_ids: companionIds,
   };
+  if (token) env.token = token;
+  return env;
 }
 
 export function createLeave(channelId: string): Envelope {
