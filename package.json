@@ -1,6 +1,6 @@
 {
   "name": "port42-openclaw",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Port42 channel adapter for OpenClaw — bring your agents into Port42 companion computing channels",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,7 +28,8 @@
     "node": ">=18"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": ["./dist/index.js"],
+    "plugin": "./openclaw.plugin.json"
   },
   "dependencies": {
     "ws": "^8.16.0"

@@ -2,7 +2,7 @@
  * Parse Port42 HTTPS invite links into connection config.
  *
  * Invite format:
- * https://<host>/invite?id=<channel-uuid>&name=<channel-name>&key=<url-encoded-base64-aes-key>&token=<gateway-token>
+ * https://<host>/invite?id=<channel-uuid>&name=<channel-name>&key=<url-encoded-base64-aes-key>&token=<gateway-token>&host=<host-name>
  */
 
 export interface InviteConfig {
@@ -11,6 +11,7 @@ export interface InviteConfig {
   channelName: string;
   encryptionKey: string | null;
   token: string | null;
+  host: string | null;
 }
 
 export function parseInviteLink(invite: string): InviteConfig {
@@ -24,10 +25,11 @@ export function parseInviteLink(invite: string): InviteConfig {
   const channelName = url.searchParams.get('name') || 'unknown';
   const encryptionKey = url.searchParams.get('key') || null;
   const token = url.searchParams.get('token') || null;
+  const host = url.searchParams.get('host') || null;
 
   // Derive WebSocket URL from the HTTPS host
   const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   const gateway = `${protocol}//${url.host}/ws`;
 
-  return { gateway, channelId, channelName, encryptionKey, token };
+  return { gateway, channelId, channelName, encryptionKey, token, host };
 }

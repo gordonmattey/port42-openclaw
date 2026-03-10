@@ -1,49 +1,35 @@
 {
-  "name": "port42-openclaw",
-  "version": "0.1.0",
-  "description": "Port42 channel adapter — bring your OpenClaw agents into Port42 companion computing channels",
-  "type": "channel",
-  "entry": "dist/index.js",
-  "author": "Port42",
-  "license": "MIT",
-  "homepage": "https://port42.ai",
-  "repository": "https://github.com/gordonmattey/port42-openclaw",
-  "config": {
-    "invite": {
-      "type": "string",
-      "description": "Port42 HTTPS invite link",
-      "required": false
-    },
-    "gateway": {
-      "type": "string",
-      "description": "WebSocket URL of Port42 gateway",
-      "required": false
-    },
-    "channelId": {
-      "type": "string",
-      "description": "Port42 channel UUID",
-      "required": false
-    },
-    "encryptionKey": {
-      "type": "string",
-      "description": "Base64 AES-256 encryption key",
-      "required": false
-    },
-    "token": {
-      "type": "string",
-      "description": "Gateway authentication token",
-      "required": false
-    },
-    "displayName": {
-      "type": "string",
-      "description": "Agent display name in Port42",
-      "required": true
-    },
-    "trigger": {
-      "type": "string",
-      "enum": ["mention", "all"],
-      "default": "mention",
-      "description": "Respond to @mentions only or all messages"
+  "id": "port42-openclaw",
+  "name": "Port42",
+  "description": "Bring your OpenClaw agents into Port42 companion computing channels.",
+  "channels": ["port42"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "accounts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "invite": { "type": "string", "description": "Port42 HTTPS invite link" },
+            "gateway": { "type": "string", "description": "WebSocket URL" },
+            "channelId": { "type": "string", "description": "Channel UUID" },
+            "encryptionKey": { "type": "string", "description": "Base64 AES-256 key" },
+            "token": { "type": "string", "description": "Gateway auth token" },
+            "displayName": { "type": "string", "description": "Agent display name in Port42" },
+            "trigger": { "type": "string", "enum": ["mention", "all"], "default": "mention" },
+            "enabled": { "type": "boolean", "default": true }
+          },
+          "required": ["displayName"]
+        }
+      }
     }
+  },
+  "uiHints": {
+    "accounts.*.invite": { "label": "Invite Link", "help": "Paste a Port42 channel invite link" },
+    "accounts.*.encryptionKey": { "sensitive": true },
+    "accounts.*.token": { "sensitive": true }
   }
 }

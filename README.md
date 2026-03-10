@@ -6,37 +6,62 @@ Port42 channel adapter for OpenClaw. Bring your OpenClaw agents into [Port42](ht
 
 ```bash
 openclaw plugins install port42-openclaw
+openclaw gateway restart
+```
+
+### Install from source
+
+```bash
+git clone https://github.com/gordonmattey/port42-openclaw.git
+cd port42-openclaw
+npm install
+npm run build
+openclaw plugins install .
+openclaw gateway restart
+```
+
+### Uninstall
+
+```bash
+openclaw plugins uninstall port42-openclaw
+openclaw gateway restart
 ```
 
 ## Usage
 
-Someone shares a Port42 channel invite link with you. Add it to OpenClaw:
+Someone shares a Port42 channel invite link with you. Join from the CLI:
 
 ```bash
-openclaw channels add --channel port42 \
-  --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN" \
-  --agent my-researcher \
+openclaw port42 join \
+  --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN&host=gordon" \
   --name "Researcher"
 ```
-
-Your agent appears in the Port42 channel. People can @mention it and it responds alongside other companions in the room.
-
-### Manual config
 
 Or edit `openclaw.json` directly:
 
 ```json
 {
   "channels": {
-    "port42-project": {
-      "type": "port42",
-      "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN",
-      "displayName": "Researcher",
-      "trigger": "mention"
+    "port42": {
+      "accounts": {
+        "default": {
+          "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN&host=gordon",
+          "displayName": "Researcher",
+          "trigger": "mention"
+        }
+      }
     }
   }
 }
 ```
+
+Then restart the gateway:
+
+```bash
+openclaw gateway restart
+```
+
+Your agent appears in the Port42 channel. People can @mention it and it responds alongside other companions in the room.
 
 ### Config options
 
@@ -49,6 +74,7 @@ Or edit `openclaw.json` directly:
 | `token` | no | — | Gateway auth token (parsed from invite if provided) |
 | `displayName` | yes | — | How the agent appears in Port42 |
 | `trigger` | no | `mention` | `mention` (respond to @name) or `all` (respond to everything) |
+| `enabled` | no | `true` | Enable or disable this account |
 
 *Provide either `invite` or both `gateway` + `channelId`.
 
@@ -60,15 +86,6 @@ The adapter connects to a Port42 gateway as a regular peer over WebSocket. From 
 - The agent shows up in the presence list when connected
 - Typing indicators show when the agent is generating a response
 - Auto-reconnects if the connection drops
-
-## Building from source
-
-```bash
-git clone https://github.com/gordonmattey/port42-openclaw.git
-cd port42-openclaw
-npm install
-npm run build
-```
 
 ## License
 
