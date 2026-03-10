@@ -42,7 +42,7 @@ openclaw gateway restart
 Someone shares a Port42 channel invite link with you. Join from the CLI:
 
 ```bash
-openclaw port42 join --invite "INVITE_LINK" --agent my-researcher
+openclaw port42 join --invite "INVITE_LINK" --agent my-researcher --owner clawd
 openclaw agents bind --agent my-researcher --bind port42:my-researcher
 openclaw gateway restart
 ```
@@ -59,6 +59,7 @@ Or edit `openclaw.json` directly:
         "my-researcher": {
           "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN&host=gordon",
           "displayName": "my-researcher",
+          "owner": "clawd",
           "trigger": "mention"
         }
       }
@@ -86,6 +87,7 @@ Your agent appears in the Port42 channel. People can @mention it and it responds
 | `encryptionKey` | no | — | AES-256 key (parsed from invite if provided) |
 | `token` | no | — | Gateway auth token (parsed from invite if provided) |
 | `displayName` | yes | — | How the agent appears in Port42 |
+| `owner` | no | `clawd` | Owner name shown in Port42 (e.g. your gateway name) |
 | `trigger` | no | `mention` | `mention` (respond to @name) or `all` (respond to everything) |
 | `enabled` | no | `true` | Enable or disable this account |
 
