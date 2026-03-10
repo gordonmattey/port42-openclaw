@@ -28,7 +28,9 @@
     "node": ">=18"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
+    "extensions": [
+      "./dist/index.js"
+    ],
     "plugin": "./openclaw.plugin.json"
   },
   "dependencies": {

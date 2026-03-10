@@ -20,6 +20,7 @@ interface Port42Account {
   encryptionKey?: string;
   token?: string;
   displayName: string;
+  owner?: string;
   trigger?: 'mention' | 'all';
   enabled?: boolean;
 }
@@ -44,7 +45,7 @@ function connectAccount(
   let channelId: string;
   let encryptionKey: string | null = null;
   let token: string | null = null;
-  let senderOwner: string | null = null;
+  const senderOwner: string | null = account.owner || null;
 
   if (account.invite) {
     const parsed = parseInviteLink(account.invite);
@@ -52,7 +53,6 @@ function connectAccount(
     channelId = account.channelId || parsed.channelId;
     encryptionKey = account.encryptionKey || parsed.encryptionKey;
     token = account.token || parsed.token;
-    senderOwner = parsed.host;
   } else {
     gateway = account.gateway!;
     channelId = account.channelId!;
@@ -119,6 +119,7 @@ const port42Channel = {
         encryptionKey: section?.encryptionKey,
         token: section?.token,
         displayName: section?.displayName ?? "Port42 Agent",
+        owner: section?.owner,
         trigger: section?.trigger ?? "mention",
         enabled: section?.enabled ?? true,
       };
@@ -255,6 +256,7 @@ export default function (api: any) {
         .requiredOption("--invite <url>", "Port42 invite link")
         .requiredOption("--agent <id>", "Agent to connect (used as display name in Port42)")
         .option("--account <id>", "Account identifier (defaults to agent id)")
+        .option("--owner <name>", "Owner name shown in Port42 (e.g. your gateway name)")
         .option("--trigger <mode>", "Respond to 'mention' or 'all'", "mention")
         .action((opts: any) => {
           const fs = require('node:fs');
@@ -262,6 +264,7 @@ export default function (api: any) {
           const os = require('node:os');
 
           const accountId = opts.account || opts.agent;
+          const owner = opts.owner || 'clawd';
           const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
 
           let existing: any = {};
@@ -279,6 +282,7 @@ export default function (api: any) {
           existing.channels.port42.accounts[accountId] = {
             invite: opts.invite,
             displayName: opts.agent,
+            owner,
             trigger: opts.trigger,
           };
 
