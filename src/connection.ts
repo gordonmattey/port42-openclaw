@@ -21,6 +21,7 @@ export interface ConnectionConfig {
   displayName: string;
   encryptionKey: string | null;
   token: string | null;
+  senderOwner: string | null;
   trigger: 'mention' | 'all';
   onMessage: (senderName: string, content: string, messageId: string) => void;
   onPresence?: (onlineIds: string[]) => void;
@@ -40,8 +41,8 @@ export class Port42Connection {
     this.config = config;
   }
 
-  connect(): void {
-    this.shouldReconnect = true;
+  connect(autoReconnect = true): void {
+    this.shouldReconnect = autoReconnect;
     this.openSocket();
   }
 
@@ -63,7 +64,7 @@ export class Port42Connection {
         content,
         senderName: this.config.displayName,
         senderType: "agent",
-        senderOwner: null,
+        senderOwner: this.config.senderOwner,
         replyToId: null,
       };
       const blob = encrypt(payload, this.config.encryptionKey);
@@ -119,8 +120,14 @@ export class Port42Connection {
       }
     });
 
-    this.ws.on('close', () => {
+    this.ws.on('close', (code, reason) => {
+      const msg = reason?.toString() || '';
+      console.log(`[port42] WS closed: code=${code} reason=${msg}`);
       this.identified = false;
+      if (msg === 'replaced by new connection') {
+        // Another connection with our sender_id took over, don't reconnect
+        return;
+      }
       this.config.onDisconnected?.();
       this.scheduleReconnect();
     });

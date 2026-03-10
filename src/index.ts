@@ -31,7 +31,8 @@ let pluginRuntime: any = null;
 // ── Helpers ──
 
 function stableSenderId(name: string): string {
-  const h = createHash('sha256').update(`port42-openclaw:${name}`).digest('hex');
+  // Use a unique namespace to avoid collision with Port42 native app companions
+  const h = createHash('sha256').update(`openclaw-channel-adapter:${name}`).digest('hex');
   return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-');
 }
 
@@ -43,6 +44,7 @@ function connectAccount(
   let channelId: string;
   let encryptionKey: string | null = null;
   let token: string | null = null;
+  let senderOwner: string | null = null;
 
   if (account.invite) {
     const parsed = parseInviteLink(account.invite);
@@ -50,6 +52,7 @@ function connectAccount(
     channelId = account.channelId || parsed.channelId;
     encryptionKey = account.encryptionKey || parsed.encryptionKey;
     token = account.token || parsed.token;
+    senderOwner = parsed.host;
   } else {
     gateway = account.gateway!;
     channelId = account.channelId!;
@@ -64,13 +67,14 @@ function connectAccount(
     displayName: account.displayName,
     encryptionKey,
     token,
+    senderOwner,
     trigger: account.trigger || 'mention',
     onMessage: onMessage || (() => {}),
     onConnected: () => console.log(`[port42] Connected as "${account.displayName}"`),
     onDisconnected: () => console.log(`[port42] Disconnected: ${account.accountId}`),
   });
 
-  conn.connect();
+  conn.connect(false);
   return conn;
 }
 
@@ -151,7 +155,16 @@ const port42Channel = {
   gateway: {
     startAccount: async (ctx: any) => {
       const account = port42Channel.config.resolveAccount(ctx.cfg, ctx.accountId);
-      console.log(`[port42] startAccount "${ctx.accountId}"`);
+      console.log(`[port42] startAccount "${ctx.accountId}" (existing conn: ${connections.has(ctx.accountId)})`);
+
+      // Disconnect any existing connection for this account
+      const existing = connections.get(ctx.accountId);
+      if (existing) {
+        console.log(`[port42] Cleaning up previous connection for "${ctx.accountId}"`);
+        existing.disconnect();
+        connections.delete(ctx.accountId);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
 
       // Get the channel ID from the invite for routing
       let p42ChannelId = account.channelId;

@@ -23,9 +23,12 @@ export function parseInviteLink(invite: string): InviteConfig {
   }
 
   const channelName = url.searchParams.get('name') || 'unknown';
-  const encryptionKey = url.searchParams.get('key') || null;
   const token = url.searchParams.get('token') || null;
   const host = url.searchParams.get('host') || null;
+
+  // Parse key manually to preserve '+' chars (searchParams decodes + as space)
+  const keyMatch = url.search.match(/[?&]key=([^&]+)/);
+  const encryptionKey = keyMatch ? decodeURIComponent(keyMatch[1]) : null;
 
   // Derive WebSocket URL from the HTTPS host
   const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
