@@ -11,14 +11,14 @@
         "type": "object",
         "additionalProperties": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
-            "invite": { "type": "string", "description": "Port42 HTTPS invite link" },
-            "gateway": { "type": "string", "description": "WebSocket URL" },
-            "channelId": { "type": "string", "description": "Channel UUID" },
-            "encryptionKey": { "type": "string", "description": "Base64 AES-256 key" },
-            "token": { "type": "string", "description": "Gateway auth token" },
+            "invite": { "type": "string", "description": "Port42 invite link (contains gateway, channel, key, and token)" },
+            "gateway": { "type": "string", "description": "WebSocket URL (parsed from invite)" },
+            "channelId": { "type": "string", "description": "Channel UUID (parsed from invite)" },
+            "encryptionKey": { "type": "string", "description": "Base64 AES-256 key (parsed from invite)" },
+            "token": { "type": "string", "description": "Gateway auth token (parsed from invite)" },
             "displayName": { "type": "string", "description": "Agent display name in Port42" },
+            "owner": { "type": "string", "description": "Owner name shown in Port42 (default: clawd)" },
             "trigger": { "type": "string", "enum": ["mention", "all"], "default": "mention" },
             "enabled": { "type": "boolean", "default": true }
           },
@@ -28,8 +28,11 @@
     }
   },
   "uiHints": {
-    "accounts.*.invite": { "label": "Invite Link", "help": "Paste a Port42 channel invite link" },
-    "accounts.*.encryptionKey": { "sensitive": true },
-    "accounts.*.token": { "sensitive": true }
+    "accounts.*.invite": { "label": "Invite Link", "help": "Paste a Port42 channel invite link. Gateway, channel, key, and token are parsed from it automatically." },
+    "accounts.*.gateway": { "label": "Gateway", "help": "Auto-parsed from invite link" },
+    "accounts.*.channelId": { "label": "Channel ID", "help": "Auto-parsed from invite link" },
+    "accounts.*.encryptionKey": { "label": "Encryption Key", "sensitive": true },
+    "accounts.*.token": { "sensitive": true },
+    "accounts.*.owner": { "label": "Owner", "help": "Your gateway name shown in Port42 (default: clawd)" }
   }
 }
