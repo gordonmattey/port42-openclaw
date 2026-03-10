@@ -62,6 +62,7 @@ export class Port42Connection {
       const payload = {
         content,
         senderName: this.config.displayName,
+        senderType: "agent",
         senderOwner: null,
         replyToId: null,
       };

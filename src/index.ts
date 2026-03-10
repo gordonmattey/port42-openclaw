@@ -24,6 +24,10 @@ interface Port42Account {
   enabled?: boolean;
 }
 
+// ── Plugin runtime (set during registration) ──
+
+let pluginRuntime: any = null;
+
 // ── Helpers ──
 
 function stableSenderId(name: string): string {
@@ -70,7 +74,7 @@ function connectAccount(
   return conn;
 }
 
-// ── Active connections ──
+// ── Active connections (keyed by accountId for outbound lookups) ──
 
 const connections = new Map<string, Port42Connection>();
 
@@ -94,10 +98,17 @@ const port42Channel = {
     listAccountIds: (cfg: any): string[] =>
       Object.keys(cfg.channels?.port42?.accounts ?? {}),
 
+    defaultAccountId: (cfg: any): string | undefined => {
+      const accounts = cfg.channels?.port42?.accounts ?? {};
+      return Object.keys(accounts)[0];
+    },
+
     resolveAccount: (cfg: any, accountId?: string | null): Port42Account => {
-      const section = cfg.channels?.port42?.accounts?.[accountId ?? "default"];
+      const accounts = cfg.channels?.port42?.accounts ?? {};
+      const id = accountId ?? Object.keys(accounts)[0] ?? "default";
+      const section = accounts[id];
       return {
-        accountId: accountId ?? "default",
+        accountId: id,
         invite: section?.invite,
         gateway: section?.gateway,
         channelId: section?.channelId,
@@ -121,12 +132,11 @@ const port42Channel = {
   },
 
   outbound: {
-    deliveryMode: "direct" as const,
+    deliveryMode: "gateway" as const,
     textChunkLimit: 4096,
 
     sendText: async (ctx: any) => {
-      const account = port42Channel.config.resolveAccount(ctx.cfg, ctx.accountId);
-      const conn = connections.get(account.accountId);
+      const conn = connections.get(ctx.accountId);
       if (!conn) {
         return { ok: false, error: new Error("Port42 account not connected") };
       }
@@ -139,34 +149,79 @@ const port42Channel = {
   },
 
   gateway: {
-    registerHandlers: (ctx: any) => {
-      const accountIds = port42Channel.config.listAccountIds(ctx.cfg);
+    startAccount: async (ctx: any) => {
+      const account = port42Channel.config.resolveAccount(ctx.cfg, ctx.accountId);
+      console.log(`[port42] startAccount "${ctx.accountId}"`);
 
-      for (const id of accountIds) {
-        const account = port42Channel.config.resolveAccount(ctx.cfg, id);
-        if (!account.enabled || !port42Channel.config.isConfigured(account)) continue;
-
-        // Skip if already connected
-        if (connections.has(id)) continue;
-
-        const conn = connectAccount(account, (senderName, content, messageId) => {
-          ctx.handleIncomingMessage?.({
-            channelId: "port42",
-            accountId: id,
-            senderId: `port42:${senderName}`,
-            senderName,
-            content,
-            messageId,
-            chatType: "group",
-          });
-        });
-
-        connections.set(id, conn);
+      // Get the channel ID from the invite for routing
+      let p42ChannelId = account.channelId;
+      if (!p42ChannelId && account.invite) {
+        p42ChannelId = parseInviteLink(account.invite).channelId;
       }
-    },
 
-    handleIncomingMessage: async (_ctx: any) => {
-      // Inbound messages are routed via the registerHandlers callback
+      const conn = connectAccount(account, async (senderName, content, messageId) => {
+        try {
+          const rt = pluginRuntime;
+
+          const route = rt.channel.routing.resolveAgentRoute({
+            cfg: ctx.cfg,
+            channel: "port42",
+            accountId: ctx.accountId,
+            peer: { kind: "group", id: p42ChannelId },
+          });
+
+          const inboundCtx = rt.channel.reply.finalizeInboundContext({
+            Body: content,
+            RawBody: content,
+            CommandBody: content,
+            From: `port42:${senderName}`,
+            To: `port42:${p42ChannelId}`,
+            SessionKey: route.sessionKey,
+            AccountId: ctx.accountId,
+            ChatType: "group",
+            ConversationLabel: senderName,
+            SenderName: senderName,
+            SenderId: `port42:${stableSenderId(senderName)}`,
+            Provider: "port42",
+            Surface: "port42",
+            MessageSid: messageId,
+            OriginatingChannel: "port42",
+            OriginatingTo: `port42:${p42ChannelId}`,
+          });
+
+          await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+            ctx: inboundCtx,
+            cfg: ctx.cfg,
+            dispatcherOptions: {
+              deliver: async (payload: any) => {
+                const conn = connections.get(ctx.accountId);
+                if (conn && payload.text) {
+                  conn.sendTyping(true);
+                  await new Promise((r) => setTimeout(r, 100));
+                  conn.sendResponse(payload.text);
+                  conn.sendTyping(false);
+                }
+              },
+            },
+            replyOptions: {},
+          });
+        } catch (err: any) {
+          console.error(`[port42] inbound error: ${err.message}`);
+        }
+      });
+
+      connections.set(ctx.accountId, conn);
+      ctx.setStatus?.("connected");
+
+      // Park the promise until OpenClaw signals shutdown
+      await new Promise<void>((resolve) => {
+        if (ctx.abortSignal?.aborted) { resolve(); return; }
+        ctx.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+
+      console.log(`[port42] Shutting down account "${ctx.accountId}"`);
+      conn.disconnect();
+      connections.delete(ctx.accountId);
     },
   },
 };
@@ -174,6 +229,7 @@ const port42Channel = {
 // ── Plugin entry point ──
 
 export default function (api: any) {
+  pluginRuntime = api.runtime;
   api.registerChannel({ plugin: port42Channel });
 
   // Register CLI: openclaw port42 join --invite "..."
@@ -184,27 +240,41 @@ export default function (api: any) {
       p42.command("join")
         .description("Join a Port42 channel with an invite link")
         .requiredOption("--invite <url>", "Port42 invite link")
-        .option("--name <name>", "Display name for your agent", "OpenClaw Agent")
-        .option("--account <id>", "Account identifier", "default")
+        .requiredOption("--agent <id>", "Agent to connect (used as display name in Port42)")
+        .option("--account <id>", "Account identifier (defaults to agent id)")
         .option("--trigger <mode>", "Respond to 'mention' or 'all'", "mention")
         .action((opts: any) => {
-          const config = {
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const os = require('node:os');
+
+          const accountId = opts.account || opts.agent;
+          const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+
+          let existing: any = {};
+          try {
+            existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          } catch {
+            // No existing config, start fresh
+          }
+
+          // Ensure structure exists
+          if (!existing.channels) existing.channels = {};
+          if (!existing.channels.port42) existing.channels.port42 = {};
+          if (!existing.channels.port42.accounts) existing.channels.port42.accounts = {};
+
+          existing.channels.port42.accounts[accountId] = {
             invite: opts.invite,
-            displayName: opts.name,
+            displayName: opts.agent,
             trigger: opts.trigger,
           };
 
-          console.log(`\nAdd this to your openclaw.json:\n`);
-          console.log(JSON.stringify({
-            channels: {
-              port42: {
-                accounts: {
-                  [opts.account]: config,
-                },
-              },
-            },
-          }, null, 2));
-          console.log(`\nThen run: openclaw gateway restart`);
+          fs.writeFileSync(configPath, JSON.stringify(existing, null, 2) + '\n');
+
+          console.log(`Added Port42 channel "${accountId}" with agent "${opts.agent}"`);
+          console.log(`\nNext steps:`);
+          console.log(`  openclaw agents bind --agent ${opts.agent} --bind port42:${accountId}`);
+          console.log(`  openclaw gateway restart`);
         });
     },
     { commands: ["port42"] },

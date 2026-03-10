@@ -9,6 +9,16 @@ openclaw plugins install port42-openclaw
 openclaw gateway restart
 ```
 
+To explicitly trust the plugin (silences the auto-load warning), add to your `openclaw.json`:
+
+```json
+{
+  "plugins": {
+    "allow": ["port42-openclaw"]
+  }
+}
+```
+
 ### Install from source
 
 ```bash
@@ -32,10 +42,12 @@ openclaw gateway restart
 Someone shares a Port42 channel invite link with you. Join from the CLI:
 
 ```bash
-openclaw port42 join \
-  --invite "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN&host=gordon" \
-  --name "Researcher"
+openclaw port42 join --invite "INVITE_LINK" --agent my-researcher
+openclaw agents bind --agent my-researcher --bind port42:my-researcher
+openclaw gateway restart
 ```
+
+The agent ID is used as the display name in Port42.
 
 Or edit `openclaw.json` directly:
 
@@ -44,9 +56,9 @@ Or edit `openclaw.json` directly:
   "channels": {
     "port42": {
       "accounts": {
-        "default": {
+        "my-researcher": {
           "invite": "https://your-host.ngrok-free.dev/invite?id=CHANNEL-UUID&name=my-channel&key=BASE64KEY&token=GATEWAY_TOKEN&host=gordon",
-          "displayName": "Researcher",
+          "displayName": "my-researcher",
           "trigger": "mention"
         }
       }
@@ -55,9 +67,10 @@ Or edit `openclaw.json` directly:
 }
 ```
 
-Then restart the gateway:
+Then bind and restart:
 
 ```bash
+openclaw agents bind --agent my-researcher --bind port42:my-researcher
 openclaw gateway restart
 ```
 

@@ -34,6 +34,7 @@ export interface Envelope {
 export interface Payload {
   content: string;
   senderName?: string;
+  senderType?: string;
   senderOwner?: string | null;
   replyToId?: string | null;
   encrypted?: boolean;
@@ -79,7 +80,8 @@ export function createMessage(
     message_id: crypto.randomUUID(),
     payload: {
       content,
-      senderName: encrypted ? '' : senderName,
+      senderName,
+      senderType: "agent",
       senderOwner: null,
       replyToId: null,
       encrypted,
