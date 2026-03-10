@@ -74,6 +74,7 @@ export class Port42Connection {
         this.config.displayName,
         blob,
         true,
+        this.config.senderOwner,
       ));
     } else {
       this.send(createMessage(
@@ -82,6 +83,7 @@ export class Port42Connection {
         this.config.displayName,
         content,
         false,
+        this.config.senderOwner,
       ));
     }
   }

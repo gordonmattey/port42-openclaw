@@ -71,6 +71,7 @@ export function createMessage(
   senderName: string,
   content: string,
   encrypted: boolean = false,
+  senderOwner: string | null = null,
 ): Envelope {
   return {
     type: 'message',
@@ -82,7 +83,7 @@ export function createMessage(
       content,
       senderName,
       senderType: "agent",
-      senderOwner: null,
+      senderOwner,
       replyToId: null,
       encrypted,
     },
