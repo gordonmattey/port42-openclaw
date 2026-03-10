@@ -74,7 +74,7 @@ function connectAccount(
     onDisconnected: () => console.log(`[port42] Disconnected: ${account.accountId}`),
   });
 
-  conn.connect(false);
+  conn.connect(true);
   return conn;
 }
 
