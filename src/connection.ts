@@ -93,14 +93,35 @@ export class Port42Connection {
     this.send(createTyping(this.config.channelId, this.config.senderId, isTyping));
   }
 
-  private openSocket(): void {
+  private async openSocket(): Promise<void> {
+    let url = this.config.gateway;
+    if (this.config.token) {
+      const sep = url.includes('?') ? '&' : '?';
+      url = `${url}${sep}token=${encodeURIComponent(this.config.token)}`;
+    }
+
+    // Pre-flight check: verify gateway is reachable and not returning HTML
+    const httpUrl = url.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
     try {
-      let url = this.config.gateway;
-      if (this.config.token) {
-        const sep = url.includes('?') ? '&' : '?';
-        url = `${url}${sep}token=${encodeURIComponent(this.config.token)}`;
+      const res = await fetch(httpUrl, {
+        method: 'HEAD',
+        headers: { 'ngrok-skip-browser-warning': '1' },
+        signal: AbortSignal.timeout(5000),
+      });
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        console.log('[port42] Gateway returned HTML (tunnel not ready or interstitial). Retrying...');
+        this.scheduleReconnect();
+        return;
       }
-      this.ws = new WebSocket(url);
+    } catch {
+      // Pre-flight failed (gateway down, timeout, etc.) — try WebSocket anyway
+    }
+
+    try {
+      this.ws = new WebSocket(url, {
+        headers: { 'ngrok-skip-browser-warning': '1' },
+      } as any);
     } catch (err) {
       console.error('[port42] Failed to create WebSocket:', err);
       this.scheduleReconnect();
@@ -135,7 +156,12 @@ export class Port42Connection {
     });
 
     this.ws.on('error', (err) => {
-      console.error('[port42] WebSocket error:', err.message);
+      const msg = err.message || '';
+      if (msg.includes('packet length') || msg.includes('wrong tag') || msg.includes('SSL')) {
+        console.log('[port42] Gateway not ready (got HTTP instead of WebSocket upgrade). Retrying...');
+      } else {
+        console.error('[port42] WebSocket error:', msg);
+      }
     });
   }
 
