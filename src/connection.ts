@@ -11,6 +11,7 @@ import {
   createAck,
   createTyping,
   createMessage,
+  createCall,
 } from './protocol';
 import { encrypt, decrypt } from './crypto';
 
@@ -36,6 +37,8 @@ export class Port42Connection {
   private maxReconnectDelay = 30000;
   private shouldReconnect = true;
   private identified = false;
+
+  private pendingCalls = new Map<string, { resolve: (val: any) => void, reject: (err: Error) => void }>();
 
   constructor(config: ConnectionConfig) {
     this.config = config;
@@ -93,14 +96,34 @@ export class Port42Connection {
     this.send(createTyping(this.config.channelId, this.config.senderId, isTyping));
   }
 
+  async call(method: string, args: any[] = []): Promise<any> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('Not connected to Port42');
+    }
+
+    const envelope = createCall(this.config.channelId, method, args);
+    const callId = envelope.call_id!;
+
+    return new Promise((resolve, reject) => {
+      this.pendingCalls.set(callId, { resolve, reject });
+      this.send(envelope);
+
+      setTimeout(() => {
+        if (this.pendingCalls.has(callId)) {
+          this.pendingCalls.delete(callId);
+          reject(new Error("Call " + method + " timed out"));
+        }
+      }, 30000);
+    });
+  }
+
   private async openSocket(): Promise<void> {
     let url = this.config.gateway;
     if (this.config.token) {
       const sep = url.includes('?') ? '&' : '?';
-      url = `${url}${sep}token=${encodeURIComponent(this.config.token)}`;
+      url = "" + url + sep + "token=" + encodeURIComponent(this.config.token);
     }
 
-    // Pre-flight check: verify gateway is reachable and not returning HTML
     const httpUrl = url.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
     try {
       const res = await fetch(httpUrl, {
@@ -115,7 +138,6 @@ export class Port42Connection {
         return;
       }
     } catch {
-      // Pre-flight failed (gateway down, timeout, etc.) — try WebSocket anyway
     }
 
     try {
@@ -131,7 +153,6 @@ export class Port42Connection {
     this.ws.on('open', () => {
       this.reconnectDelay = 3000;
       this.identified = false;
-      // Wait for no_auth/challenge from gateway before sending identify
     });
 
     this.ws.on('message', (data) => {
@@ -145,10 +166,9 @@ export class Port42Connection {
 
     this.ws.on('close', (code, reason) => {
       const msg = reason?.toString() || '';
-      console.log(`[port42] WS closed: code=${code} reason=${msg}`);
+      console.log("[port42] WS closed: code=" + code + " reason=" + msg);
       this.identified = false;
       if (msg === 'replaced by new connection') {
-        // Another connection with our sender_id took over, don't reconnect
         return;
       }
       this.config.onDisconnected?.();
@@ -168,7 +188,6 @@ export class Port42Connection {
   private handleEnvelope(envelope: Envelope): void {
     switch (envelope.type) {
       case 'no_auth':
-        // Gateway doesn't require auth, send identify
         if (!this.identified) {
           this.send(createIdentify(this.config.senderId, this.config.displayName));
         }
@@ -184,6 +203,10 @@ export class Port42Connection {
         this.handleIncomingMessage(envelope);
         break;
 
+      case 'response':
+        this.handleRPCResponse(envelope);
+        break;
+
       case 'presence':
         if (envelope.online_ids) {
           this.config.onPresence?.(envelope.online_ids);
@@ -192,24 +215,44 @@ export class Port42Connection {
 
       case 'error':
         console.error('[port42] Gateway error:', envelope.error);
+        if (envelope.call_id && this.pendingCalls.has(envelope.call_id)) {
+          const call = this.pendingCalls.get(envelope.call_id)!;
+          this.pendingCalls.delete(envelope.call_id);
+          call.reject(new Error(envelope.error || 'unknown gateway error'));
+        }
         break;
 
       case 'ack':
-        // Message delivered
         break;
+    }
+  }
+
+  private handleRPCResponse(envelope: Envelope): void {
+    const callId = envelope.call_id;
+    if (!callId || !this.pendingCalls.has(callId)) return;
+
+    const call = this.pendingCalls.get(callId)!;
+    this.pendingCalls.delete(callId);
+
+    if (envelope.error) {
+      call.reject(new Error(envelope.error));
+    } else if (envelope.payload) {
+      try {
+        const result = JSON.parse(envelope.payload.content);
+        call.resolve(result);
+      } catch {
+        call.resolve(envelope.payload.content);
+      }
+    } else {
+      call.resolve(null);
     }
   }
 
   private handleIncomingMessage(envelope: Envelope): void {
     if (!envelope.payload || !envelope.message_id) return;
-
-    // Ignore own messages
     if (envelope.sender_id === this.config.senderId) return;
-
-    // ACK receipt
     this.send(createAck(envelope.message_id, this.config.channelId!));
 
-    // Decrypt if needed
     let content: string;
     let senderName: string;
 
@@ -226,9 +269,8 @@ export class Port42Connection {
       senderName = envelope.payload.senderName || envelope.sender_name || 'Unknown';
     }
 
-    // Check trigger rules
     if (this.config.trigger === 'mention') {
-      const mentionPattern = new RegExp(`@${this.config.displayName}\\b`, 'i');
+      const mentionPattern = new RegExp("@" + this.config.displayName + "\b", 'i');
       if (!mentionPattern.test(content)) return;
     }
 
@@ -243,7 +285,7 @@ export class Port42Connection {
 
   private scheduleReconnect(): void {
     if (!this.shouldReconnect) return;
-    console.log(`[port42] Reconnecting in ${this.reconnectDelay / 1000}s...`);
+    console.log("[port42] Reconnecting in " + (this.reconnectDelay / 1000) + "s...");
     setTimeout(() => this.openSocket(), this.reconnectDelay);
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
   }

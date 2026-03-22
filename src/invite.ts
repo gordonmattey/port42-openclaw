@@ -1,8 +1,11 @@
 /**
  * Parse Port42 HTTPS invite links into connection config.
  *
- * Invite format:
- * https://<host>/invite?id=<channel-uuid>&name=<channel-name>&key=<url-encoded-base64-aes-key>&token=<gateway-token>&host=<host-name>
+ * Direct invite format (gateway host == invite host):
+ * https://<gateway-host>/invite?id=<channel-uuid>&name=<channel-name>&key=<...>&token=<...>&host=<...>
+ *
+ * Redirect invite format (port42.ai landing page with explicit gateway param):
+ * https://port42.ai/invite.html?gateway=wss://<gateway-host>&id=<channel-uuid>&...
  */
 
 export interface InviteConfig {
@@ -30,9 +33,18 @@ export function parseInviteLink(invite: string): InviteConfig {
   const keyMatch = url.search.match(/[?&]key=([^&]+)/);
   const encryptionKey = keyMatch ? decodeURIComponent(keyMatch[1]) : null;
 
-  // Derive WebSocket URL from the HTTPS host
-  const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  const gateway = `${protocol}//${url.host}/ws`;
+  // Use explicit gateway= param if present (port42.ai redirect format),
+  // otherwise derive from the invite host (direct gateway format).
+  const gatewayParam = url.searchParams.get('gateway');
+  let gateway: string;
+  if (gatewayParam) {
+    // Normalise: strip trailing slash, ensure /ws path
+    const base = gatewayParam.replace(/\/+$/, '');
+    gateway = base.endsWith('/ws') ? base : `${base}/ws`;
+  } else {
+    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    gateway = `${protocol}//${url.host}/ws`;
+  }
 
   return { gateway, channelId, channelName, encryptionKey, token, host };
 }

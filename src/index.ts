@@ -32,8 +32,7 @@ let pluginRuntime: any = null;
 // ── Helpers ──
 
 function stableSenderId(name: string): string {
-  // Use a unique namespace to avoid collision with Port42 native app companions
-  const h = createHash('sha256').update(`openclaw-channel-adapter:${name}`).digest('hex');
+  const h = createHash('sha256').update("openclaw-channel-adapter:" + name).digest('hex');
   return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-');
 }
 
@@ -70,8 +69,8 @@ function connectAccount(
     senderOwner,
     trigger: account.trigger || 'mention',
     onMessage: onMessage || (() => {}),
-    onConnected: () => console.log(`[port42] Connected as "${account.displayName}"`),
-    onDisconnected: () => console.log(`[port42] Disconnected: ${account.accountId}`),
+    onConnected: () => console.log("[port42] Connected as \"" + account.displayName + "\""),
+    onDisconnected: () => console.log("[port42] Disconnected: " + account.accountId),
   });
 
   conn.connect(true);
@@ -156,18 +155,16 @@ const port42Channel = {
   gateway: {
     startAccount: async (ctx: any) => {
       const account = port42Channel.config.resolveAccount(ctx.cfg, ctx.accountId);
-      console.log(`[port42] startAccount "${ctx.accountId}" (existing conn: ${connections.has(ctx.accountId)})`);
+      console.log("[port42] startAccount \"" + ctx.accountId + "\" (existing conn: " + connections.has(ctx.accountId) + ")");
 
-      // Disconnect any existing connection for this account
       const existing = connections.get(ctx.accountId);
       if (existing) {
-        console.log(`[port42] Cleaning up previous connection for "${ctx.accountId}"`);
+        console.log("[port42] Cleaning up previous connection for \"" + ctx.accountId + "\"");
         existing.disconnect();
         connections.delete(ctx.accountId);
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      // Get the channel ID from the invite for routing
       let p42ChannelId = account.channelId;
       if (!p42ChannelId && account.invite) {
         p42ChannelId = parseInviteLink(account.invite).channelId;
@@ -188,19 +185,19 @@ const port42Channel = {
             Body: content,
             RawBody: content,
             CommandBody: content,
-            From: `port42:${senderName}`,
-            To: `port42:${p42ChannelId}`,
+            From: "port42:" + senderName,
+            To: "port42:" + p42ChannelId,
             SessionKey: route.sessionKey,
             AccountId: ctx.accountId,
             ChatType: "group",
             ConversationLabel: senderName,
             SenderName: senderName,
-            SenderId: `port42:${stableSenderId(senderName)}`,
+            SenderId: "port42:" + stableSenderId(senderName),
             Provider: "port42",
             Surface: "port42",
             MessageSid: messageId,
             OriginatingChannel: "port42",
-            OriginatingTo: `port42:${p42ChannelId}`,
+            OriginatingTo: "port42:" + p42ChannelId,
           });
 
           await rt.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
@@ -220,24 +217,118 @@ const port42Channel = {
             replyOptions: {},
           });
         } catch (err: any) {
-          console.error(`[port42] inbound error: ${err.message}`);
+          console.error("[port42] inbound error: " + err.message);
         }
       });
 
       connections.set(ctx.accountId, conn);
       ctx.setStatus?.("connected");
 
-      // Park the promise until OpenClaw signals shutdown
       await new Promise<void>((resolve) => {
         if (ctx.abortSignal?.aborted) { resolve(); return; }
         ctx.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
       });
 
-      console.log(`[port42] Shutting down account "${ctx.accountId}"`);
+      console.log("[port42] Shutting down account \"" + ctx.accountId + "\"");
       conn.disconnect();
       connections.delete(ctx.accountId);
     },
   },
+};
+
+// ── Tool plugin descriptor ──
+
+const port42Tools = {
+  id: "port42_tools" as const,
+  meta: {
+    id: "port42_tools",
+    label: "Port42 Tools",
+    blurb: "Allow agents to use Port42 terminal, filesystem, and browser tools.",
+  },
+  tools: [
+    {
+      name: "terminal_exec",
+      description: "Execute a shell command on the Port42 host machine via the native app bridge.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "The shell command to run" },
+          cwd: { type: "string", description: "Optional working directory" },
+          timeout: { type: "number", description: "Optional timeout in seconds (default 30)" },
+        },
+        required: ["command"],
+      },
+      execute: async ({ ctx, input }: any) => {
+        const conn = connections.get(ctx.accountId);
+        if (!conn) throw new Error("Port42 account not connected");
+        return await conn.call("terminal.exec", [input.command, { cwd: input.cwd, timeout: input.timeout }]);
+      },
+    },
+    {
+      name: "screenshot",
+      description: "Capture a screenshot of the host machine's screen.",
+      parameters: {
+        type: "object",
+        properties: {
+          scale: { type: "number", description: "Optional scale factor (default 1.0)" },
+        },
+      },
+      execute: async ({ ctx, input }: any) => {
+        const conn = connections.get(ctx.accountId);
+        if (!conn) throw new Error("Port42 account not connected");
+        const result = await conn.call("screen.capture", [input]);
+        if (result && result.image) {
+          return { 
+            text: "Screenshot captured and saved to Port42 captures directory.",
+            images: [{ type: "base64", media_type: "image/png", data: result.image }]
+          };
+        }
+        return result;
+      },
+    },
+    {
+      name: "clipboard_read",
+      description: "Read the current contents of the host machine's clipboard.",
+      parameters: { type: "object", properties: {} },
+      execute: async ({ ctx }: any) => {
+        const conn = connections.get(ctx.accountId);
+        if (!conn) throw new Error("Port42 account not connected");
+        return await conn.call("clipboard.read");
+      },
+    },
+    {
+      name: "file_read",
+      description: "Read a file from the host machine (scoped to Port42 permissions).",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Absolute path or relative to picked directory" },
+        },
+        required: ["path"],
+      },
+      execute: async ({ ctx, input }: any) => {
+        const conn = connections.get(ctx.accountId);
+        if (!conn) throw new Error("Port42 account not connected");
+        return await conn.call("fs.read", [input.path]);
+      },
+    },
+    {
+      name: "browser_open",
+      description: "Open a URL in the host's headless browser bridge.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The URL to open" },
+        },
+        required: ["url"],
+      },
+      execute: async ({ ctx, input }: any) => {
+        const conn = connections.get(ctx.accountId);
+        if (!conn) throw new Error("Port42 account not connected");
+        return await conn.call("browser.open", [input.url]);
+      },
+    },
+  ],
 };
 
 // ── Plugin entry point ──
@@ -245,8 +336,8 @@ const port42Channel = {
 export default function (api: any) {
   pluginRuntime = api.runtime;
   api.registerChannel({ plugin: port42Channel });
+  api.registerToolPlugin({ plugin: port42Tools });
 
-  // Register CLI: openclaw port42 join --invite "..."
   api.registerCli(
     ({ program }: any) => {
       const p42 = program.command("port42").description("Port42 companion computing");
@@ -270,11 +361,9 @@ export default function (api: any) {
           let existing: any = {};
           try {
             existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          } catch {
-            // No existing config, start fresh
+          } catch (e) {
           }
 
-          // Ensure structure exists
           if (!existing.channels) existing.channels = {};
           if (!existing.channels.port42) existing.channels.port42 = {};
           if (!existing.channels.port42.accounts) existing.channels.port42.accounts = {};
@@ -288,17 +377,16 @@ export default function (api: any) {
 
           fs.writeFileSync(configPath, JSON.stringify(existing, null, 2) + '\n');
 
-          console.log(`Added Port42 channel "${accountId}" with agent "${opts.agent}"`);
-          console.log(`\nNext steps:`);
-          console.log(`  openclaw agents bind --agent ${opts.agent} --bind port42:${accountId}`);
-          console.log(`  openclaw gateway restart`);
+          console.log("Added Port42 channel \"" + accountId + "\" with agent \"" + opts.agent + "\"");
+          console.log("\nNext steps:");
+          console.log("  openclaw agents bind --agent " + opts.agent + " --bind port42:" + accountId);
+          console.log("  openclaw gateway restart");
         });
     },
     { commands: ["port42"] },
   );
 }
 
-// Re-export for standalone use
 export { parseInviteLink } from './invite';
 export { Port42Connection } from './connection';
 export type { ConnectionConfig } from './connection';

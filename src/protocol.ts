@@ -14,7 +14,9 @@ export type EnvelopeType =
   | 'read'
   | 'presence'
   | 'typing'
-  | 'error';
+  | 'error'
+  | 'call'
+  | 'response';
 
 export interface Envelope {
   type: EnvelopeType;
@@ -29,6 +31,13 @@ export interface Envelope {
   online_ids?: string[];
   status?: 'online' | 'offline';
   companion_ids?: string[];
+
+  // RPC fields
+  method?: string;
+  args?: any[];
+  call_id?: string;
+  target_id?: string;
+  is_host?: boolean;
 }
 
 export interface Payload {
@@ -45,6 +54,7 @@ export function createIdentify(senderId: string, senderName: string): Envelope {
     type: 'identify',
     sender_id: senderId,
     sender_name: senderName,
+    is_host: false,
   };
 }
 
@@ -110,6 +120,30 @@ export function createTyping(
     sender_id: senderId,
     payload: {
       content: isTyping ? 'typing' : 'stopped',
+    },
+  };
+}
+
+export function createCall(channelId: string, method: string, args: any[] = []): Envelope {
+  return {
+    type: 'call',
+    channel_id: channelId,
+    method,
+    args,
+    call_id: crypto.randomUUID(),
+  };
+}
+
+export function createResponse(callId: string, targetId: string, result: any): Envelope {
+  return {
+    type: 'response',
+    call_id: callId,
+    target_id: targetId,
+    payload: {
+      content: typeof result === 'string' ? result : JSON.stringify(result),
+      senderName: 'agent',
+      senderType: 'agent',
+      replyToId: null,
     },
   };
 }
