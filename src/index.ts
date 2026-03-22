@@ -236,18 +236,22 @@ const port42Channel = {
   },
 };
 
-// ── Tool plugin descriptor ──
+// ── Tool factory (new registerTool API) ──
 
-const port42Tools = {
-  id: "port42_tools" as const,
-  meta: {
-    id: "port42_tools",
-    label: "Port42 Tools",
-    blurb: "Allow agents to use Port42 terminal, filesystem, and browser tools.",
-  },
-  tools: [
+function makeResult(data: unknown) {
+  const text = typeof data === "string" ? data : JSON.stringify(data);
+  return { content: [{ type: "text" as const, text }], details: data };
+}
+
+function port42ToolFactory(ctx: any) {
+  const accountId: string | undefined = ctx.agentAccountId;
+  const conn = () => (accountId ? connections.get(accountId) : undefined);
+  const noConn = () => makeResult("Error: Port42 account not connected");
+
+  return [
     {
       name: "terminal_exec",
+      label: "Terminal Exec",
       description: "Execute a shell command on the Port42 host machine via the native app bridge.",
       parameters: {
         type: "object",
@@ -257,47 +261,50 @@ const port42Tools = {
           timeout: { type: "number", description: "Optional timeout in seconds (default 30)" },
         },
         required: ["command"],
-      },
-      execute: async ({ ctx, input }: any) => {
-        const conn = connections.get(ctx.accountId);
-        if (!conn) throw new Error("Port42 account not connected");
-        return await conn.call("terminal.exec", [input.command, { cwd: input.cwd, timeout: input.timeout }]);
+      } as any,
+      execute: async (_id: string, params: any) => {
+        const c = conn(); if (!c) return noConn();
+        return makeResult(await c.call("terminal.exec", [params.command, { cwd: params.cwd, timeout: params.timeout }]));
       },
     },
     {
       name: "screenshot",
+      label: "Screenshot",
       description: "Capture a screenshot of the host machine's screen.",
       parameters: {
         type: "object",
         properties: {
           scale: { type: "number", description: "Optional scale factor (default 1.0)" },
         },
-      },
-      execute: async ({ ctx, input }: any) => {
-        const conn = connections.get(ctx.accountId);
-        if (!conn) throw new Error("Port42 account not connected");
-        const result = await conn.call("screen.capture", [input]);
+      } as any,
+      execute: async (_id: string, params: any) => {
+        const c = conn(); if (!c) return noConn();
+        const result = await c.call("screen.capture", [params]);
         if (result && result.image) {
-          return { 
-            text: "Screenshot captured and saved to Port42 captures directory.",
-            images: [{ type: "base64", media_type: "image/png", data: result.image }]
+          return {
+            content: [
+              { type: "text" as const, text: "Screenshot captured." },
+              { type: "image" as const, source: { type: "base64", media_type: "image/png", data: result.image } },
+            ],
+            details: result,
           };
         }
-        return result;
+        return makeResult(result);
       },
     },
     {
       name: "clipboard_read",
+      label: "Clipboard Read",
       description: "Read the current contents of the host machine's clipboard.",
-      parameters: { type: "object", properties: {} },
-      execute: async ({ ctx }: any) => {
-        const conn = connections.get(ctx.accountId);
-        if (!conn) throw new Error("Port42 account not connected");
-        return await conn.call("clipboard.read");
+      parameters: { type: "object", properties: {} } as any,
+      execute: async (_id: string, _params: any) => {
+        const c = conn(); if (!c) return noConn();
+        return makeResult(await c.call("clipboard.read"));
       },
     },
     {
       name: "file_read",
+      label: "File Read",
       description: "Read a file from the host machine (scoped to Port42 permissions).",
       parameters: {
         type: "object",
@@ -305,15 +312,15 @@ const port42Tools = {
           path: { type: "string", description: "Absolute path or relative to picked directory" },
         },
         required: ["path"],
-      },
-      execute: async ({ ctx, input }: any) => {
-        const conn = connections.get(ctx.accountId);
-        if (!conn) throw new Error("Port42 account not connected");
-        return await conn.call("fs.read", [input.path]);
+      } as any,
+      execute: async (_id: string, params: any) => {
+        const c = conn(); if (!c) return noConn();
+        return makeResult(await c.call("fs.read", [params.path]));
       },
     },
     {
       name: "browser_open",
+      label: "Browser Open",
       description: "Open a URL in the host's headless browser bridge.",
       parameters: {
         type: "object",
@@ -321,22 +328,21 @@ const port42Tools = {
           url: { type: "string", description: "The URL to open" },
         },
         required: ["url"],
-      },
-      execute: async ({ ctx, input }: any) => {
-        const conn = connections.get(ctx.accountId);
-        if (!conn) throw new Error("Port42 account not connected");
-        return await conn.call("browser.open", [input.url]);
+      } as any,
+      execute: async (_id: string, params: any) => {
+        const c = conn(); if (!c) return noConn();
+        return makeResult(await c.call("browser.open", [params.url]));
       },
     },
-  ],
-};
+  ];
+}
 
 // ── Plugin entry point ──
 
 export default function (api: any) {
   pluginRuntime = api.runtime;
   api.registerChannel({ plugin: port42Channel });
-  api.registerToolPlugin({ plugin: port42Tools });
+  api.registerTool(port42ToolFactory);
 
   api.registerCli(
     ({ program }: any) => {
