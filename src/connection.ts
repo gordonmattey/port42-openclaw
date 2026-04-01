@@ -270,7 +270,7 @@ export class Port42Connection {
     }
 
     if (this.config.trigger === 'mention') {
-      const mentionPattern = new RegExp("@" + this.config.displayName + "\b", 'i');
+      const mentionPattern = new RegExp("@" + this.config.displayName + "\\b", 'i');
       if (!mentionPattern.test(content)) return;
     }
 
